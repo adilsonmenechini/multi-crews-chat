@@ -86,7 +86,7 @@ Para executar o projeto, você precisará ter o Docker e o `docker-compose` inst
 1.  **Clone o repositório:**
 
     ```bash
-    git clone https://github.com/seu-usuario/multi-crews-chat.git
+    git clone https://github.com/adilsonmenechini/multi-crews-chat.git
     cd multi-crews-chat
     ```
 
