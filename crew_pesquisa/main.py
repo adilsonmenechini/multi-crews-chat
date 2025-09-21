@@ -1,8 +1,10 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from crewai import Agent, Task, Crew, Process, LLM
+from tool_ddgs import duckduckgo_search_tool
 from dotenv import load_dotenv
 import os
+
 
 load_dotenv()
 
@@ -16,6 +18,7 @@ llm = LLM(
     model=f"{model}",
     base_url=f"{base_url}"
 )
+
 app = FastAPI()
 
 class Input(BaseModel):
@@ -27,7 +30,8 @@ pesquisador = Agent(
     backstory="Você resume pontos relevantes de forma clara.",
     verbose=False,
     llm=llm,
-    memory=False
+    memory=False,
+    tools=[duckduckgo_search_tool]
 )
 
 pesquisa_task = Task(

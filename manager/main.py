@@ -24,7 +24,7 @@ logging.basicConfig(level=logging.INFO)
 class Message(BaseModel):
     text: str
 
-def safe_post(url: str, payload: dict, timeout: int = 60):
+def safe_post(url: str, payload: dict, timeout: int = 240):
     try:
         r = requests.post(url, json=payload, timeout=timeout)
         r.raise_for_status()

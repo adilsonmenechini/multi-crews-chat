@@ -78,7 +78,9 @@ Cada serviço é um aplicativo executado em seu próprio contêiner Docker.
 - **Endpoint**: `POST /kickoff`
 - **Agente**: "Pesquisador Acadêmico"
 - **Objetivo**: Encontrar informações confiáveis sobre o tópico solicitado.
-
+- **Tools**:
+    - **DuckDuckGo Search**: O agente utiliza a ferramenta de busca DuckDuckGo para pesquisar na web.
+    
 ### Crew Redação
 
 - **Endpoint**: `POST /kickoff`
