@@ -1,16 +1,21 @@
 # Multi-Crews Chat
 
-Este projeto implementa um sistema de chat multi-agente usando `crewai` e `fastapi`, orquestrado com `docker-compose`. O sistema é composto por um serviço de gerenciamento e três serviços de "crew" (equipe), cada um com uma função específica: pesquisa, redação e avaliação.
+Este projeto implementa um sistema de chat multi-agente usando `crewai` e `fastapi`, orquestrado com `docker-compose`. O sistema é composto por um serviço de gerenciamento, três serviços de "crew" (equipe) com funções específicas (pesquisa, redação e avaliação) e uma interface de chat web com Streamlit.
 
 ## Arquitetura
 
-O sistema utiliza uma arquitetura de microserviços, onde cada agente (crew) opera de forma independente e é gerenciado por um serviço central.
+O sistema utiliza uma arquitetura de microserviços, onde cada componente opera de forma independente.
 
 ```mermaid
 flowchart TD
-    U[Usuário] -->|mensagem e chat| M[Manager]
+    subgraph "Interface do Usuário"
+        C[Chat Web - Streamlit]
+    end
+
+    U[Usuário] --> C
+    C -->|mensagem via HTTP| M[Manager]
     
-    subgraph Micro-crews
+    subgraph "Micro-crews"
         P[Crew Pesquisa
         Agente + Task]
         Red[Crew Redação
@@ -27,10 +32,11 @@ flowchart TD
     Red --> M
     A --> M
 
-    M -->|resposta final| U
+    M -->|resposta final| C
 ```
 
-- **Manager**: O serviço principal que recebe as mensagens do usuário e as direciona para a equipe apropriada.
+- **Chat Web (Streamlit)**: A interface de usuário para interagir com o sistema de chat. Disponível em `http://localhost:8501`.
+- **Manager**: O serviço principal que recebe as mensagens da interface, as direciona para a equipe apropriada e retorna a resposta.
 - **Crew Pesquisa**: Responsável por realizar pesquisas sobre um determinado tópico.
 - **Crew Redação**: Responsável por escrever um artigo com base em um tópico e pesquisa.
 - **Crew Avaliação**: Responsável por avaliar um artigo.
@@ -54,7 +60,13 @@ O `flow` (fluxo) de uma equipe define como as tarefas são executadas. Neste pro
 
 ## Serviços
 
-Cada serviço é um aplicativo `fastapi` executado em seu próprio contêiner Docker.
+Cada serviço é um aplicativo executado em seu próprio contêiner Docker.
+
+### Chat Streamlit
+
+- **Interface**: Web com Streamlit
+- **Porta**: `8501`
+- **Descrição**: Interface de chat para o usuário enviar perguntas e receber as respostas do sistema.
 
 ### Manager
 
@@ -93,14 +105,22 @@ Para executar o projeto, você precisará ter o Docker e o `docker-compose` inst
 2.  **Inicie os serviços:**
 
     ```bash
-    docker-compose up -d
+    docker-compose up --build -d
     ```
 
     Isso irá construir e iniciar todos os serviços definidos no arquivo `docker-compose.yml`.
 
 ## Uso
 
-Você pode interagir com o sistema de chat enviando uma solicitação POST para o endpoint `/chat` do serviço de gerenciamento.
+A forma principal de interagir com o sistema é através da interface de chat web.
+
+1.  Após iniciar os serviços com `docker-compose`, abra seu navegador.
+2.  Acesse **http://localhost:8501**.
+3.  Digite sua pergunta no campo de chat e pressione Enter.
+
+### Acesso via API (Alternativo)
+
+Você também pode interagir diretamente com a API do `manager` enviando uma solicitação POST para o endpoint `/chat`.
 
 **Exemplo de solicitação:**
 

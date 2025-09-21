@@ -42,3 +42,12 @@ services:
       - OLLAMA_MODEL=ollama/llama3.2:latest
       - CREWAI_DISABLE_TELEMETRY=true
       - OTEL_SDK_DISABLED=true
+      
+  chat_streamlit:
+    build: ./chat_streamlit
+    ports:
+      - "8501:8501"
+    environment:
+      - MANAGER_URL=http://manager:8000
+    depends_on:
+      - manager
