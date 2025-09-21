@@ -1,4 +1,6 @@
 fastapi
 uvicorn
-crewai
-
+crewai[tools]
+crewai-tools
+duckduckgo-search
+python-dotenv
