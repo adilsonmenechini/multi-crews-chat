@@ -1,4 +1,7 @@
-from fastapi import FastAPI
+import re
+import logging
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import requests
 from crewai import Agent, Task, Crew, Process, LLM
@@ -13,31 +16,38 @@ os.environ['OTEL_SDK_DISABLED'] = 'true'
 model = os.getenv("OLLAMA_MODEL")
 base_url = os.getenv("OLLAMA_BASE_URL")
 
-llm = LLM(
-    model=f"{model}",
-    base_url=f"{base_url}"
-)
+llm = LLM(model=model, base_url=base_url)
 
 app = FastAPI()
+logging.basicConfig(level=logging.INFO)
 
 class Message(BaseModel):
     text: str
 
+def safe_post(url: str, payload: dict, timeout: int = 60):
+    try:
+        r = requests.post(url, json=payload, timeout=timeout)
+        r.raise_for_status()
+        return r.json()["result"]
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Erro chamando {url}: {e}")
+        raise HTTPException(status_code=502, detail=f"Serviço indisponível: {url}")
+
 def call_pesquisa(topic: str):
-    r = requests.post("http://crew_pesquisa:8000/kickoff", json={"inputs": {"topic": topic}}, timeout=60)
-    return r.json()["result"]
+    result = safe_post("http://crew_pesquisa:8000/kickoff", {"inputs": {"topic": topic}})
+    return result["raw"] if isinstance(result, dict) and "raw" in result else result
 
 def call_redacao(topic: str, pesquisa: str):
-    r = requests.post("http://crew_redacao:8000/kickoff", json={"inputs": {"topic": topic, "pesquisa": pesquisa}}, timeout=60)
-    return r.json()["result"]
+    result = safe_post("http://crew_redacao:8000/kickoff", {"inputs": {"topic": topic, "pesquisa": pesquisa}})
+    return result["raw"] if isinstance(result, dict) and "raw" in result else result
 
 def call_avaliacao(artigo: str):
-    r = requests.post("http://crew_avaliacao:8000/kickoff", json={"inputs": {"artigo": artigo}}, timeout=60)
-    return r.json()["result"]
+    result = safe_post("http://crew_avaliacao:8000/kickoff", {"inputs": {"artigo": artigo}})
+    return result["raw"] if isinstance(result, dict) and "raw" in result else result
 
 router_agent = Agent(
     role="Gerente de Conversa",
-    goal="Entender a mensagem do usuário e decidir qual micro-crew deve ser chamado",
+    goal="Decidir qual micro-crew chamar",
     backstory="Você coordena três assistentes: pesquisador, redator e avaliador.",
     verbose=False,
     memory=True,
@@ -45,7 +55,12 @@ router_agent = Agent(
 )
 
 route_task = Task(
-    description="Analise a mensagem: {message}. Responda APENAS com UMA das seguintes palavras exatas: pesquisa, redacao, avaliacao. Não adicione pontuação, aspas ou explicações.",
+    description=(
+        "Analise a mensagem: {message}. "
+        "Responda APENAS com UMA das seguintes palavras exatas: "
+        "pesquisa, redacao, avaliacao. "
+        "Não adicione pontuação, aspas ou explicações."
+    ),
     expected_output="Uma única palavra: pesquisa OU redacao OU avaliacao",
     agent=router_agent
 )
@@ -57,24 +72,31 @@ manager_crew = Crew(
     manager_llm=llm
 )
 
+
+VALID_DECISIONS = {"pesquisa", "redacao", "avaliacao"}
+
+def parse_decision(raw: str) -> str | None:
+    if not raw:
+        return None
+    decision = raw.strip().lower()
+    decision = re.sub(r'[^a-z]', '', decision)
+    return decision if decision in VALID_DECISIONS else None
+
+
 @app.post("/chat")
 def chat(msg: Message):
     result = manager_crew.kickoff(inputs={"message": msg.text})
-    print(f"Raw decision: '{result.raw}'")  # Debug line
+    logging.info(f"Raw decision: '{result.raw}'")
     
-    decision = result.raw.strip().lower()
-    decision = decision.replace('"', '').replace("'", '').replace('.', '').strip()
-    print(f"Cleaned decision: '{decision}'")  # Debug line
+    decision = parse_decision(result.raw)
+    if not decision:
+        return JSONResponse(content={"reply": f"Não consegui decidir. Recebi: '{result.raw}'"})
     
-    if decision == "pesquisa":
-        resposta = call_pesquisa(msg.text)
-        return {"reply": f"[Pesquisa] {resposta}"}
-    elif decision == "redacao":
-        pesquisa = call_pesquisa(msg.text)
-        resposta = call_redacao(msg.text, pesquisa)
-        return {"reply": f"[Redação] {resposta}"}
-    elif decision == "avaliacao":
-        resposta = call_avaliacao(msg.text)
-        return {"reply": f"[Avaliação] {resposta}"}
+    actions = {
+        "pesquisa": lambda: f"[Pesquisa] {call_pesquisa(msg.text)}",
+        "redacao": lambda: f"[Redação] {call_redacao(msg.text, call_pesquisa(msg.text))}",
+        "avaliacao": lambda: f"[Avaliação] {call_avaliacao(msg.text)}"
+    }
     
-    return {"reply": f"Não consegui decidir. Recebi: '{decision}'"}
+    resposta = actions[decision]()
+    return JSONResponse(content={"reply": resposta})
